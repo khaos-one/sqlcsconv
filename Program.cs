@@ -15,15 +15,39 @@ namespace sqlcsconv {
 
         static void Fail(string message = null, int exitCode = 1) {
             if (!string.IsNullOrWhiteSpace(message)) {
-                Console.Write("ERROR: ");
-                Console.WriteLine(message);
+                WriteLine($"ERROR: {message}");
             }
             else {
-                Console.WriteLine(Options.GetUsage());
+                WriteLine(Options.GetUsage());
             }
 
             Connection?.Dispose();
             Environment.Exit(exitCode);
+        }
+
+        static void WriteLine(string message, ConsoleColor? foregroundColor = null, ConsoleColor? backgroundColor = null) {
+            Write(message + Environment.NewLine, foregroundColor, backgroundColor);
+        }
+
+        static void Write(string message, ConsoleColor? foregroundColor = null, ConsoleColor? backgroundColor = null) {
+            var fcol = Console.ForegroundColor;
+            var bcol = Console.BackgroundColor;
+
+            if (foregroundColor != null) {
+                Console.ForegroundColor = foregroundColor.Value;
+            }
+            if (backgroundColor != null) {
+                Console.BackgroundColor = backgroundColor.Value;
+            }
+
+            Console.WriteLine(message);
+
+            if (foregroundColor != null) {
+                Console.ForegroundColor = fcol;
+            }
+            if (backgroundColor != null) {
+                Console.BackgroundColor = bcol;
+            }
         }
 
         static List<T> SelectColumn<T>(string cmdText, int columnNumber = 0) {
@@ -51,6 +75,13 @@ namespace sqlcsconv {
 
         static DataTable SelectTable(string cmd, int tableNumber = 0) {
             return Select(cmd).Tables[tableNumber];
+        }
+
+        static bool Execute(string cmdText) {
+            using (var cmd = Connection.CreateCommand()) {
+                cmd.CommandText = cmdText;
+                return cmd.ExecuteNonQuery() > 0;
+            }
         }
 
         static void Main(string[] args) {
@@ -123,7 +154,79 @@ namespace sqlcsconv {
                 }
             }
 
-            Console.Write(CreateConversionScriptForTable(Table, Options.DestEncoding));
+            if (Table != null) {
+                if (Options.GenerateScript) {
+                    WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding));
+                }
+                else {
+                    if (Options.Verbose) {
+                        Write($"Analyzing table `{Database}`.`{Table}`... ", ConsoleColor.Magenta);
+                    }
+
+                    var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding);
+
+                    if (Options.Verbose) {
+                        WriteLine("Done.", ConsoleColor.Green);
+                        Write($"Converting table `{Database}`.`{Table}`... ", ConsoleColor.Magenta);
+                    }
+
+                    if (!Options.Imitate) {
+                        Execute(script);
+                    }
+
+                    if (Options.Verbose) {
+                        WriteLine("Done.", ConsoleColor.Green);
+                    }
+                }
+            }
+            else {
+                var script = $"-- Database `{Database}`.\n\n" +
+                             $"USE `{Database}`;\n" +
+                             $"ALTER DATABASE `{Database}` CHARACTER SET {Options.DestEncoding};\n\n";
+
+                if (Options.GenerateScript) {
+                    script = tables.Aggregate(script,
+                        (current, tbl) =>
+                            current + CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding));
+                    WriteLine(script);
+                }
+                else {
+                    if (Options.Verbose) {
+                        Write($"Converting database `{Database}`...", ConsoleColor.Magenta);
+                    }
+
+                    if (!Options.Imitate) {
+                        Execute(script);
+                    }
+
+                    if (Options.Verbose) {
+                        WriteLine("done.", ConsoleColor.Green);
+                    }
+
+                    foreach (var tbl in tables) {
+                        if (Options.Verbose) {
+                            Write($"Analyzing table `{Database}`.`{tbl}`... ", ConsoleColor.Magenta);
+                        }
+
+                        script = CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding);
+
+                        if (Options.Verbose) {
+                            WriteLine("done.", ConsoleColor.Green);
+                            Write($"Converting table `{Database}`.`{tbl}`... ", ConsoleColor.Magenta);
+                        }
+
+                        if (!Options.Imitate) {
+                            Execute(script);
+                        }
+
+                        if (Options.Verbose) {
+                            WriteLine("done.", ConsoleColor.Green);
+                        }
+                    }
+                }
+            }
+
+            WriteLine("SUCCESS: All done.");
         }
 
         static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null) {

@@ -30,11 +30,14 @@ namespace sqlcsconv {
         [Option('d', "DestEncoding", HelpText = "Destination encoding for the object(s) of conversion in SQL format (i.e. 'utf8').", Required = true)]
         public string DestEncoding { get; set; }
         
-        [Option("GenerateScript", DefaultValue = null, HelpText = "If specified, conversion SQL script will be outputted, database will not be changed.", Required = false)]
-        public string GenerateScript { get; set; }
+        [Option('g', "GenerateScript", DefaultValue = false, HelpText = "If specified, conversion SQL script will be outputted, database will not be changed.", Required = false, MutuallyExclusiveSet = "Verbose")]
+        public bool GenerateScript { get; set; }
 
-        [Option('v', "Verbose", DefaultValue = false, HelpText = "Sets the verbosity of the output.", Required = false)]
+        [Option('v', "Verbose", DefaultValue = false, HelpText = "Sets the verbosity of the output.", Required = false, MutuallyExclusiveSet = "GenerateScript")]
         public bool Verbose { get; set; }
+
+        [Option('i', "Imitate", DefaultValue = false, HelpText = "Only imitate applying changes to database.", Required = false)]
+        public bool Imitate { get; set; }
 
 
         [ParserState]
