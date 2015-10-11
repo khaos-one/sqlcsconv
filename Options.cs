@@ -21,7 +21,7 @@ namespace sqlcsconv {
         [Option('p', "Password", DefaultValue = null, HelpText = "DBMS password for specified user.", Required = false)]
         public string Password { get; set; }
 
-        [Option(Required = true, HelpText = "Target of conversation -- whole database or individual table. In the case of a single table a database where this table resides must be specified (i.e. 'database.table').")]
+        [Option('t', "Target", Required = true, HelpText = "Target of conversation -- whole database or individual table. In the case of a single table a database where this table resides must be specified (i.e. 'database.table').")]
         public string Target { get; set; }
         
         [Option('s', "SourceEncoding", DefaultValue = null, HelpText = "Source encoding of the object(s) of conversion in SQL format (i.e. 'utf8'). If omitted, reinterpretation will be done.", Required = false)]
