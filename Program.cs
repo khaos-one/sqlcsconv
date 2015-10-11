@@ -109,7 +109,7 @@ namespace sqlcsconv {
             }
 
             // Build connection string.
-            var connectionString = $"Server={Options.Host};Port={Options.Port};Database={Database};Uid={Options.User};";
+            var connectionString = $"Server={Options.Host};Port={Options.Port};Database={Database};Uid={Options.User}";
 
             if (Options.Password != null) {
                 connectionString += $";Pwd={Options.Password}";
@@ -333,7 +333,7 @@ namespace sqlcsconv {
                 foreach (var column in columnsToConvert) {
                     if (indexColumnName == column.Key &&
                         (column.Value.Item1 == "TINYTEXT" || column.Value.Item1 == "MEDIUMTEXT" ||
-                         column.Value.Item1 == "LONGTEXT" || column.Value.Item1 == "TEXT") &&
+                         column.Value.Item1 == "LONGTEXT" || column.Value.Item1 == "TEXT" || (indexType != null && indexType == "FULLTEXT")) &&
                          !indexesToConvert.ContainsKey(indexName)) {
                         indexesToConvert.Add(indexName,
                             new Tuple<List<string>, string>(new List<string>(new[] {indexColumnName}), indexType));
