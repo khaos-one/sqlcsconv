@@ -463,7 +463,7 @@ namespace sqlcsconv {
                     
                     script = columnsToConvert.Aggregate(script,
                         (current, column) =>
-                            current + $"ALTER TABLE MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset};\n");
+                            current + $"{alterTable} MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset};\n");
                     script += '\n';
                 }
 
