@@ -15,7 +15,7 @@ namespace sqlcsconv {
 
         static void Fail(string message = null, int exitCode = 1) {
             if (!string.IsNullOrWhiteSpace(message)) {
-                WriteLine($"ERROR: {message}");
+                WriteLine($"ERROR: {message}", ConsoleColor.Red);
             }
             else {
                 WriteLine(Options.GetUsage());
@@ -192,7 +192,7 @@ namespace sqlcsconv {
                 }
                 else {
                     if (Options.Verbose) {
-                        Write($"Converting database `{Database}`...", ConsoleColor.Magenta);
+                        Write($"Converting database `{Database}`... ", ConsoleColor.Magenta);
                     }
 
                     if (!Options.Imitate) {
@@ -317,7 +317,7 @@ namespace sqlcsconv {
                 foreach (var column in columnsToConvert) {
                     if (indexColumnName == column.Key &&
                         (column.Value.Item1 == "TINYTEXT" || column.Value.Item1 == "MEDIUMTEXT" ||
-                         column.Value.Item1 == "LOGTEXT" || column.Value.Item1 == "TEXT") &&
+                         column.Value.Item1 == "LONGTEXT" || column.Value.Item1 == "TEXT") &&
                          !indexesToConvert.ContainsKey(indexName)) {
                         indexesToConvert.Add(indexName,
                             new Tuple<List<string>, string>(new List<string>(new[] {indexColumnName}), indexType));
@@ -327,7 +327,7 @@ namespace sqlcsconv {
             }
 
             foreach (var indexColumn in indexesBuffer) {
-                if (columnsToConvert.ContainsKey(indexColumn.Item2)) {
+                if (columnsToConvert.ContainsKey(indexColumn.Item2) && indexesToConvert.ContainsKey(indexColumn.Item1)) {
                     if (!indexesToConvert[indexColumn.Item1].Item1.Contains(indexColumn.Item2)) {
                         indexesToConvert[indexColumn.Item1].Item1.Add(indexColumn.Item2);
                     }
