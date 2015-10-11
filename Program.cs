@@ -226,7 +226,9 @@ namespace sqlcsconv {
                 }
             }
 
-            WriteLine("SUCCESS: All done.", ConsoleColor.Green);
+            if (!Options.GenerateScript) {
+                WriteLine("SUCCESS: All done.", ConsoleColor.Green);
+            }
         }
 
         static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null) {
