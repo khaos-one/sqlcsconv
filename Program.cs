@@ -349,6 +349,14 @@ namespace sqlcsconv {
             }
 
             if (columnsToConvert.Any()) {
+                if (sourceCharset != null) {
+                    script += $"{alterTable} \n";
+                    script = columnsToConvert.Aggregate(script,
+                        (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {sourceCharset},\n");
+                    script = script.Remove(script.Length - 2);
+                    script += ";\n\n";
+                }
+
                 script += $"{alterTable} \n";
                 script = columnsToConvert.Aggregate(script,
                     (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item2},\n");
