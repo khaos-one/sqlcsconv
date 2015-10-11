@@ -166,7 +166,7 @@ namespace sqlcsconv {
                     var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding);
 
                     if (Options.Verbose) {
-                        WriteLine("Done.", ConsoleColor.Green);
+                        WriteLine("done.", ConsoleColor.Green);
                         Write($"Converting table `{Database}`.`{Table}`... ", ConsoleColor.Magenta);
                     }
 
@@ -175,7 +175,7 @@ namespace sqlcsconv {
                     }
 
                     if (Options.Verbose) {
-                        WriteLine("Done.", ConsoleColor.Green);
+                        WriteLine("done.", ConsoleColor.Green);
                     }
                 }
             }
@@ -226,7 +226,7 @@ namespace sqlcsconv {
                 }
             }
 
-            WriteLine("SUCCESS: All done.");
+            WriteLine("SUCCESS: All done.", ConsoleColor.Green);
         }
 
         static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null) {
