@@ -160,17 +160,23 @@ namespace sqlcsconv {
                 tablesToExclude = Options.ExcludeTables.Split(',');
             }
 
+            string[] serialQueryFor = {};
+
+            if (Options.SerialQueryFor != null) {
+                tablesToExclude = Options.SerialQueryFor.Split(',');
+            }
+
             // Do the conversion.
             if (Table != null) {
                 if (Options.GenerateScript) {
-                    WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding));
+                    WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery));
                 }
                 else {
                     if (Options.Verbose) {
                         Write($"Analyzing table `{Database}`.`{Table}`... ", ConsoleColor.Magenta);
                     }
 
-                    var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding);
+                    var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery);
 
                     if (Options.Verbose) {
                         WriteLine("done.", ConsoleColor.Green);
@@ -194,7 +200,9 @@ namespace sqlcsconv {
                 if (Options.GenerateScript) {
                     script = tables.Aggregate(script,
                         (current, tbl) =>
-                            current + CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding));
+                            current +
+                            CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding,
+                                Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl)));
                     WriteLine(script);
                 }
                 else {
@@ -222,7 +230,8 @@ namespace sqlcsconv {
                             Write($"Analyzing table `{Database}`.`{tbl}`... ", ConsoleColor.Magenta);
                         }
 
-                        script = CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding);
+                        script = CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding,
+                            Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl));
 
                         if (Options.Verbose) {
                             WriteLine("done.", ConsoleColor.Green);
@@ -245,7 +254,7 @@ namespace sqlcsconv {
             }
         }
 
-        static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null) {
+        static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null, bool createSerialQueries = false) {
             var describe = SelectTable($"DESCRIBE `{Database}`.`{tbl}`");
             var columnsToConvert = new Dictionary<string, Tuple<string, string>>();
 
@@ -355,52 +364,100 @@ namespace sqlcsconv {
             var script = $"-- Table `{Database}`.`{tbl}`\n\n" +
                          $"{alterTable} CHARACTER SET {destCharset};\n";
 
-            if (indexesToConvert.Any()) {
-                script += $"{alterTable} \n";
-                script = indexesToConvert.Aggregate(script, (current, index) => current + $"    DROP INDEX `{index.Key}`,\n");
-                script = script.Remove(script.Length - 2);
-                script += ";\n\n";
-            }
-
-            if (columnsToConvert.Any()) {
-                if (sourceCharset != null) {
+            if (!createSerialQueries) {
+                if (indexesToConvert.Any()) {
                     script += $"{alterTable} \n";
-                    script = columnsToConvert.Aggregate(script,
-                        (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {sourceCharset},\n");
+                    script = indexesToConvert.Aggregate(script,
+                        (current, index) => current + $"    DROP INDEX `{index.Key}`,\n");
                     script = script.Remove(script.Length - 2);
                     script += ";\n\n";
                 }
 
-                script += $"{alterTable} \n";
-                script = columnsToConvert.Aggregate(script,
-                    (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item2},\n");
-                script = script.Remove(script.Length - 2);
-                script += ";\n\n";
+                if (columnsToConvert.Any()) {
+                    if (sourceCharset != null) {
+                        script += $"{alterTable} \n";
+                        script = columnsToConvert.Aggregate(script,
+                            (current, column) =>
+                                current +
+                                $"    MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {sourceCharset},\n");
+                        script = script.Remove(script.Length - 2);
+                        script += ";\n\n";
+                    }
 
-                script += $"{alterTable} \n";
-                script = columnsToConvert.Aggregate(script,
-                    (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset},\n");
-                script = script.Remove(script.Length - 2);
-                script += ";\n\n";
+                    script += $"{alterTable} \n";
+                    script = columnsToConvert.Aggregate(script,
+                        (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item2},\n");
+                    script = script.Remove(script.Length - 2);
+                    script += ";\n\n";
+
+                    script += $"{alterTable} \n";
+                    script = columnsToConvert.Aggregate(script,
+                        (current, column) =>
+                            current + $"    MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset},\n");
+                    script = script.Remove(script.Length - 2);
+                    script += ";\n\n";
+                }
+
+                if (indexesToConvert.Any()) {
+                    script += $"{alterTable} \n";
+                    script = indexesToConvert.Aggregate(script, (current, index) => {
+                        if (index.Value.Item2 != null) {
+                            current += $"    ADD {index.Value.Item2} ";
+                        }
+                        else {
+                            current += $"    ADD ";
+                        }
+
+                        current += $"INDEX `{index.Key}` (";
+                        current = index.Value.Item1.Aggregate(current, (current1, column) => current1 + $"`{column}`,");
+                        current = current.Remove(current.Length - 1);
+                        return current + "),\n";
+                    });
+                    script = script.Remove(script.Length - 2);
+                    script += ";\n\n";
+                }
             }
+            else {
+                if (indexesToConvert.Any()) {
+                    script = indexesToConvert.Aggregate(script,
+                        (current, index) => current + $"{alterTable} DROP INDEX `{index.Key}`;\n");
+                    script += '\n';
+                }
 
-            if (indexesToConvert.Any()) {
-                script += $"{alterTable} \n";
-                script = indexesToConvert.Aggregate(script, (current, index) => {
-                    if (index.Value.Item2 != null) {
-                        current += $"    ADD {index.Value.Item2} ";
+                if (columnsToConvert.Any()) {
+                    if (sourceCharset != null) {
+                        script = columnsToConvert.Aggregate(script,
+                            (current, column) =>
+                                current +
+                                $"{alterTable} MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {sourceCharset};\n");
+                        script += '\n';
                     }
-                    else {
-                        current += $"    ADD ";
-                    }
+                    
+                    script = columnsToConvert.Aggregate(script,
+                        (current, column) => current + $"{alterTable} MODIFY `{column.Key}` {column.Value.Item2};\n");
+                    script += '\n';
+                    
+                    script = columnsToConvert.Aggregate(script,
+                        (current, column) =>
+                            current + $"ALTER TABLE MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset};\n");
+                    script += '\n';
+                }
 
-                    current += $"INDEX `{index.Key}` (";
-                    current = index.Value.Item1.Aggregate(current, (current1, column) => current1 + $"`{column}`,");
-                    current = current.Remove(current.Length - 1);
-                    return current + "),\n";
-                });
-                script = script.Remove(script.Length - 2);
-                script += ";\n\n";
+                if (indexesToConvert.Any()) {
+                    script = indexesToConvert.Aggregate(script, (current, index) => {
+                        if (index.Value.Item2 != null) {
+                            current += $"{alterTable} ADD {index.Value.Item2} ";
+                        } else {
+                            current += $"{alterTable} ADD ";
+                        }
+
+                        current += $"INDEX `{index.Key}` (";
+                        current = index.Value.Item1.Aggregate(current, (current1, column) => current1 + $"`{column}`,");
+                        current = current.Remove(current.Length - 1);
+                        return current + ");\n";
+                    });
+                    script += '\n';
+                }
             }
 
             return script;

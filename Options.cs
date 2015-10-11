@@ -39,8 +39,14 @@ namespace sqlcsconv {
         [Option('i', "Imitate", DefaultValue = false, HelpText = "Only imitate applying changes, no actual conversion will be done.", Required = false)]
         public bool Imitate { get; set; }
 
-        [Option('e', "ExcludeTables", DefaultValue = null, HelpText = "Exclude following tables when performing batch operation on a database. Tables to exclude can be listed as comma-separated list.", Required = false)]
+        [Option('e', "ExcludeTables", DefaultValue = null, HelpText = "Exclude following tables when performing batch operation on a database. Tables to exclude can be listed as comma-separated list. Applies only with database conversion.", Required = false)]
         public string ExcludeTables { get; set; }
+
+        [Option("SerialQueryFor", DefaultValue = null, HelpText = "Construct slow serial queries instead of bulk ALTER for specified tables. It's intended for use with very large tables where single bulk queries timeouts. Tables can be listed as comma-separated values. Parameter is used only with database conversion, for single table conversion see --SerialQuery.")]
+        public string SerialQueryFor { get; set; }
+
+        [Option("SerialQuery", DefaultValue = false, HelpText = "Construct slow serial queries instead of bulk ALTER. It's intended for use with very large tables where single bulk queries timeouts. Parameter applies to all queries during conversion. See also --SerialQueryFor.")]
+        public bool SerialQuery { get; set; }
 
 
         [ParserState]
