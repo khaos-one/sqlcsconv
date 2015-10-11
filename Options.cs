@@ -39,6 +39,9 @@ namespace sqlcsconv {
         [Option('i', "Imitate", DefaultValue = false, HelpText = "Only imitate applying changes, no actual conversion will be done.", Required = false)]
         public bool Imitate { get; set; }
 
+        [Option('e', "ExcludeTables", DefaultValue = null, HelpText = "Exclude following tables when performing batch operation on a database. Tables to exclude can be listed as comma-separated list.", Required = false)]
+        public string ExcludeTables { get; set; }
+
 
         [ParserState]
         public IParserState LastParserState { get; set; }

@@ -109,7 +109,7 @@ namespace sqlcsconv {
             }
 
             // Build connection string.
-            var connectionString = $"Server={Options.Host};Port={Options.Port};Database={Database};Uid={Options.User}";
+            var connectionString = $"Server={Options.Host};Port={Options.Port};Database={Database};Uid={Options.User};";
 
             if (Options.Password != null) {
                 connectionString += $";Pwd={Options.Password}";
@@ -146,7 +146,7 @@ namespace sqlcsconv {
 
             // Retrieve tables list for database.
             var tables = SelectColumn<string>($"SHOW TABLES IN `{Database}`");
-
+            
             // If table was specified, check it does exist.
             if (Table != null) {
                 if (!tables.Contains(Table)) {
@@ -154,6 +154,13 @@ namespace sqlcsconv {
                 }
             }
 
+            string[] tablesToExclude = null;
+
+            if (Options.ExcludeTables != null) {
+                tablesToExclude = Options.ExcludeTables.Split(',');
+            }
+
+            // Do the conversion.
             if (Table != null) {
                 if (Options.GenerateScript) {
                     WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding));
@@ -204,6 +211,13 @@ namespace sqlcsconv {
                     }
 
                     foreach (var tbl in tables) {
+                        if (tablesToExclude != null) {
+                            if (tablesToExclude.Contains(tbl)) {
+                                WriteLine($"Omitting table `{tbl}`.", ConsoleColor.Yellow);
+                                continue;
+                            }
+                        }
+
                         if (Options.Verbose) {
                             Write($"Analyzing table `{Database}`.`{tbl}`... ", ConsoleColor.Magenta);
                         }
