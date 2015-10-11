@@ -36,7 +36,7 @@ namespace sqlcsconv {
         [Option('v', "Verbose", DefaultValue = false, HelpText = "Sets the verbosity of the output.", Required = false, MutuallyExclusiveSet = "GenerateScript")]
         public bool Verbose { get; set; }
 
-        [Option('i', "Imitate", DefaultValue = false, HelpText = "Only imitate applying changes to database.", Required = false)]
+        [Option('i', "Imitate", DefaultValue = false, HelpText = "Only imitate applying changes, no actual conversion will be done.", Required = false)]
         public bool Imitate { get; set; }
 
 
