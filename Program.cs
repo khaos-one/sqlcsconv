@@ -84,6 +84,18 @@ namespace sqlcsconv {
             }
         }
 
+        static bool Execute(string[] cmdTexts) {
+            var result = true;
+            foreach (var cmdText in cmdTexts) {
+                using (var cmd = Connection.CreateCommand()) {
+                    cmd.CommandText = cmdText;
+                    result = cmd.ExecuteNonQuery() > 0;
+                }
+            }
+
+            return result;
+        }
+
         static void Main(string[] args) {
             // Parse arguments.
             if (!Parser.Default.ParseArguments(args, Options)) {
@@ -184,7 +196,13 @@ namespace sqlcsconv {
                     }
 
                     if (!Options.Imitate) {
-                        Execute(script);
+                        if (Options.SerialQuery) {
+                            var queries = script.Split('\n').Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+                            Execute(queries);
+                        }
+                        else {
+                            Execute(script);
+                        }
                     }
 
                     if (Options.Verbose) {
@@ -239,7 +257,13 @@ namespace sqlcsconv {
                         }
 
                         if (!Options.Imitate) {
-                            Execute(script);
+                            if (Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl)) {
+                                var queries = script.Split('\n').Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+                                Execute(queries);
+                            }
+                            else {
+                                Execute(script);
+                            }
                         }
 
                         if (Options.Verbose) {
