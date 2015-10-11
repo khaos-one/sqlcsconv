@@ -40,7 +40,7 @@ namespace sqlcsconv {
                 Console.BackgroundColor = backgroundColor.Value;
             }
 
-            Console.WriteLine(message);
+            Console.Write(message);
 
             if (foregroundColor != null) {
                 Console.ForegroundColor = fcol;
