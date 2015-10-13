@@ -51,6 +51,9 @@ namespace sqlcsconv {
         [Option('f', "ContinueOnError", DefaultValue = false, HelpText = "Continue execution on MySQL errors.", Required = false)]
         public bool ContinueOnError { get; set; }
 
+        [Option('r', "ReplaceBytes", Required = false, DefaultValue = null, HelpText = "Replace following bytes just before the conversion to destination encoding. It's often needed when some characters was broken and final conversion will fail. The replacements must be defined in following format: <HEX_BYTES_TO_REPLACE>:<HEX_BYTES_REPLACEMENT>,... (for example 'D0A03F=D098,D1A03F=D198). Warning! Replacement operations take large amounts of time to complete on large sets of data. It is adwised to use this option with SerialQuery.")]
+        public string ReplaceBytes { get; set; }
+            
         [ParserState]
         public IParserState LastParserState { get; set; }
 

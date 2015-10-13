@@ -101,6 +101,26 @@ namespace sqlcsconv {
             return result;
         }
 
+        public static byte[] StringToByteArray(string hex) {
+            return Enumerable.Range(0, hex.Length)
+                .Where(x => x%2 == 0)
+                .Select(x => Convert.ToByte(hex.Substring(x, 2), 16))
+                .ToArray();
+        }
+
+        static Dictionary<string, string> ParseReplacementArray(string expr) {
+            var matches = Regex.Matches(expr, "([a-zA-Z0-9]+=[a-zA-Z0-9]+),?");
+
+            if (matches.Count == 0) {
+                return null;
+            }
+
+            return
+                (from Match match in matches select match.Groups[1].Value.Split('=')).Where(
+                    x => x.Length == 2).ToDictionary(
+                        keyvalue => keyvalue[0], keyvalue => keyvalue[1]);
+        } 
+
         static void Main(string[] args) {
             // Parse arguments.
             if (!Parser.Default.ParseArguments(args, Options)) {
@@ -183,17 +203,27 @@ namespace sqlcsconv {
                 serialQueryFor = Options.SerialQueryFor.Split(',');
             }
 
+            IDictionary<string, string> replacements = null;
+
+            if (Options.ReplaceBytes != null) {
+                replacements = ParseReplacementArray(Options.ReplaceBytes);
+
+                if (replacements == null) {
+                    Fail("ReplaceBytes has incorrect format.");
+                }
+            }
+
             // Do the conversion.
             if (Table != null) {
                 if (Options.GenerateScript) {
-                    WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery));
+                    WriteLine(CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery, replacements));
                 }
                 else {
                     if (Options.Verbose) {
                         Write($"Analyzing table `{Database}`.`{Table}`... ", ConsoleColor.Magenta);
                     }
 
-                    var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery);
+                    var script = CreateConversionScriptForTable(Table, Options.DestEncoding, Options.SourceEncoding, Options.SerialQuery, replacements);
 
                     if (Options.Verbose) {
                         WriteLine("done.", ConsoleColor.Green);
@@ -225,7 +255,7 @@ namespace sqlcsconv {
                         (current, tbl) =>
                             current +
                             CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding,
-                                Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl)));
+                                Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl), replacements));
                     WriteLine(script);
                 }
                 else {
@@ -254,7 +284,7 @@ namespace sqlcsconv {
                         }
 
                         script = CreateConversionScriptForTable(tbl, Options.DestEncoding, Options.SourceEncoding,
-                            Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl));
+                            Options.SerialQuery ? Options.SerialQuery : serialQueryFor.Contains(tbl), replacements);
 
                         if (Options.Verbose) {
                             WriteLine("done.", ConsoleColor.Green);
@@ -283,7 +313,19 @@ namespace sqlcsconv {
             }
         }
 
-        static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null, bool createSerialQueries = false) {
+        static string CreateReplacementScriptForColumns(string tbl, IDictionary<string, Tuple<string, string>> columns,
+            IDictionary<string, string> replacements) {
+            return columns.Aggregate(string.Empty,
+                (current1, column) =>
+                    replacements.Aggregate(current1,
+                        (current, replacement) =>
+                            current +
+                            $"UPDATE `{Database}`.`{tbl}` SET `{column.Key}` = REPLACE(`{column.Key}`, 0x{replacement.Key}, 0x{replacement.Value});\n")) +
+                   '\n';
+        }
+
+        static string CreateConversionScriptForTable(string tbl, string destCharset, string sourceCharset = null,
+            bool createSerialQueries = false, IDictionary<string, string> replacements = null) {
             var describe = SelectTable($"DESCRIBE `{Database}`.`{tbl}`");
             var columnsToConvert = new Dictionary<string, Tuple<string, string>>();
 
@@ -311,14 +353,16 @@ namespace sqlcsconv {
                 var match = Regex.Match(rowType, @"^(?:VARCHAR|varchar)\((\d+)\)$");
 
                 if (match.Success) {
-                    columnsToConvert.Add(rowName, new Tuple<string, string>(match.Value, $"VARBINARY({match.Groups[1].Value})"));
+                    columnsToConvert.Add(rowName,
+                        new Tuple<string, string>(match.Value, $"VARBINARY({match.Groups[1].Value})"));
                     continue;
                 }
 
                 match = Regex.Match(rowType, @"^(?:CHAR|char)\((\d+)\)$");
 
                 if (match.Success) {
-                    columnsToConvert.Add(rowName, new Tuple<string, string>(match.Value, $"BINARY({match.Groups[1].Value})"));
+                    columnsToConvert.Add(rowName,
+                        new Tuple<string, string>(match.Value, $"BINARY({match.Groups[1].Value})"));
                     continue;
                 }
 
@@ -366,13 +410,15 @@ namespace sqlcsconv {
                     indexType = null;
                 }
 
-                indexesBuffer.Add(new Tuple<string, string, string, long>(indexName, indexColumnName, indexType, indexNonUnique));
+                indexesBuffer.Add(new Tuple<string, string, string, long>(indexName, indexColumnName, indexType,
+                    indexNonUnique));
 
                 foreach (var column in columnsToConvert) {
                     if (indexColumnName == column.Key &&
                         (column.Value.Item1 == "TINYTEXT" || column.Value.Item1 == "MEDIUMTEXT" ||
-                         column.Value.Item1 == "LONGTEXT" || column.Value.Item1 == "TEXT" || (indexType != null && indexType == "FULLTEXT")) &&
-                         !indexesToConvert.ContainsKey(indexName)) {
+                         column.Value.Item1 == "LONGTEXT" || column.Value.Item1 == "TEXT" ||
+                         (indexType != null && indexType == "FULLTEXT")) &&
+                        !indexesToConvert.ContainsKey(indexName)) {
                         indexesToConvert.Add(indexName,
                             new Tuple<List<string>, string>(new List<string>(new[] {indexColumnName}), indexType));
                         break;
@@ -391,7 +437,7 @@ namespace sqlcsconv {
             // Now assemble resulting SQL script.
             var alterTable = $"ALTER TABLE `{Database}`.`{tbl}`";
             var script = $"-- Table `{Database}`.`{tbl}`\n\n" +
-                         $"{alterTable} CHARACTER SET {destCharset};\n";
+                         $"{alterTable} CHARACTER SET {destCharset};\n\n";
 
             if (!createSerialQueries) {
                 if (indexesToConvert.Any()) {
@@ -418,6 +464,10 @@ namespace sqlcsconv {
                         (current, column) => current + $"    MODIFY `{column.Key}` {column.Value.Item2},\n");
                     script = script.Remove(script.Length - 2);
                     script += ";\n\n";
+
+                    if (replacements != null) {
+                        script += CreateReplacementScriptForColumns(tbl, columnsToConvert, replacements);
+                    }
 
                     script += $"{alterTable} \n";
                     script = columnsToConvert.Aggregate(script,
@@ -461,14 +511,19 @@ namespace sqlcsconv {
                                 $"{alterTable} MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {sourceCharset};\n");
                         script += '\n';
                     }
-                    
+
                     script = columnsToConvert.Aggregate(script,
                         (current, column) => current + $"{alterTable} MODIFY `{column.Key}` {column.Value.Item2};\n");
                     script += '\n';
-                    
+
+                    if (replacements != null) {
+                        script += CreateReplacementScriptForColumns(tbl, columnsToConvert, replacements);
+                    }
+
                     script = columnsToConvert.Aggregate(script,
                         (current, column) =>
-                            current + $"{alterTable} MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset};\n");
+                            current +
+                            $"{alterTable} MODIFY `{column.Key}` {column.Value.Item1} CHARACTER SET {destCharset};\n");
                     script += '\n';
                 }
 
@@ -476,7 +531,8 @@ namespace sqlcsconv {
                     script = indexesToConvert.Aggregate(script, (current, index) => {
                         if (index.Value.Item2 != null) {
                             current += $"{alterTable} ADD {index.Value.Item2} ";
-                        } else {
+                        }
+                        else {
                             current += $"{alterTable} ADD ";
                         }
 
