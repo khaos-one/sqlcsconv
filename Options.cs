@@ -48,6 +48,8 @@ namespace sqlcsconv {
         [Option("SerialQuery", DefaultValue = false, HelpText = "Construct slow serial queries instead of bulk ALTER. It's intended for use with very large tables where single bulk queries timeouts. Parameter applies to all queries during conversion. See also --SerialQueryFor.")]
         public bool SerialQuery { get; set; }
 
+        [Option('f', "ContinueOnError", DefaultValue = false, HelpText = "Continue execution on MySQL errors.", Required = false)]
+        public bool ContinueOnError { get; set; }
 
         [ParserState]
         public IParserState LastParserState { get; set; }

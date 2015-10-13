@@ -13,7 +13,7 @@ namespace sqlcsconv {
         static string Table = null;
         static MySqlConnection Connection;
 
-        static void Fail(string message = null, int exitCode = 1) {
+        static void Fail(string message = null, int exitCode = 1, bool dontExit = false) {
             if (!string.IsNullOrWhiteSpace(message)) {
                 WriteLine($"ERROR: {message}", ConsoleColor.Red);
             }
@@ -21,8 +21,10 @@ namespace sqlcsconv {
                 WriteLine(Options.GetUsage());
             }
 
-            Connection?.Dispose();
-            Environment.Exit(exitCode);
+            if (!dontExit) {
+                Connection?.Dispose();
+                Environment.Exit(exitCode);
+            }
         }
 
         static void WriteLine(string message, ConsoleColor? foregroundColor = null, ConsoleColor? backgroundColor = null) {
@@ -78,19 +80,22 @@ namespace sqlcsconv {
         }
 
         static bool Execute(string cmdText) {
-            using (var cmd = Connection.CreateCommand()) {
-                cmd.CommandText = cmdText;
-                return cmd.ExecuteNonQuery() > 0;
+            try {
+                using (var cmd = Connection.CreateCommand()) {
+                    cmd.CommandText = cmdText;
+                    return cmd.ExecuteNonQuery() > 0;
+                }
+            }
+            catch (MySqlException e) {
+                Fail($"MySQL error: {e.Message}", dontExit: Options.ContinueOnError);
+                return false;
             }
         }
 
         static bool Execute(string[] cmdTexts) {
             var result = true;
             foreach (var cmdText in cmdTexts) {
-                using (var cmd = Connection.CreateCommand()) {
-                    cmd.CommandText = cmdText;
-                    result = cmd.ExecuteNonQuery() > 0;
-                }
+                result = Execute(cmdText);
             }
 
             return result;
@@ -175,7 +180,7 @@ namespace sqlcsconv {
             string[] serialQueryFor = {};
 
             if (Options.SerialQueryFor != null) {
-                tablesToExclude = Options.SerialQueryFor.Split(',');
+                serialQueryFor = Options.SerialQueryFor.Split(',');
             }
 
             // Do the conversion.
